@@ -2,16 +2,13 @@ import os
 import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import google.generativeai as genai
-from dotenv import load_dotenv
-
-load_dotenv()
+from google import genai 
+from google.genai import types
 
 app = Flask(__name__)
 CORS(app)
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 @app.route('/analyze', methods=['POST'])
 def analyze_tweet():
@@ -28,22 +25,28 @@ def analyze_tweet():
         {{
             "score": (integer 0-100),
             "reasoning": (string, short explanation),
-            "sources": (list of strings, verifyable URLs)
+            "sources": (list of strings or ["None found"])
         }}
         """
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json" 
+            )
+        )
         
-        response = model.generate_content(prompt)
-        
-        clean_text = response.text.replace('```json', '').replace('```', '').strip()
-        
-        result = json.loads(clean_text)
+        result = json.loads(response.text)
         
         return jsonify(result)
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"!!! SERVER ERROR !!!: {str(e)}")
         
-        return jsonify({"error": "Failed to analyze tweet"}), 500
+        return jsonify({"error": "Analysis failed", "details": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    
+    app.run(host='0.0.0.0', port=port)
