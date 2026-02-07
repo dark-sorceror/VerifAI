@@ -3,7 +3,7 @@ import uuid
 import os
 import subprocess
 import json
-import cv2
+import cv2 # for ELA and frame-to-frame consistency
 import numpy as np
 from PIL import Image, ImageChops
 
@@ -191,6 +191,61 @@ def perform_ela_analysis(video_path: str) -> dict:
             "ela_score": float(mean_noise),
             "max_difference": int(max_diff),
             "interpretation": "Low noise (Smooth/Artificial)" if mean_noise < 2.0 else "High noise (Natural/Grainy)"
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+    
+def analyze_frame_consistency(video_path: str) -> dict:
+    """
+    Analyzes temporal stability.
+    AI videos often have 'shimmering' or inconsistent object coherence between frames.
+    We compare consecutive frames to measure average pixel difference (flux).
+    """
+    try:
+        cap = cv2.VideoCapture(video_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # analyze a 1-second chunk from the middle (approx 30 frames)
+        start_frame = max(0, frame_count // 2)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        
+        prev_gray = None
+        diff_scores = []
+        
+        # analyze up to 30 frames
+        for _ in range(30):
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # convert to grayscale for simpler math
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            if prev_gray is not None:
+                # Calculate absolute difference between current and previous frame
+                score = cv2.absdiff(prev_gray, gray)
+                non_zero_count = np.count_nonzero(score)
+                diff_scores.append(non_zero_count)
+            
+            prev_gray = gray
+            
+        cap.release()
+        
+        if not diff_scores:
+            return {"valid": False, "error": "Not enough frames to analyze"}
+
+        # Calculate statistics
+        # Variance: How "jerky" the movement is
+        # Mean: How much movement there is overall
+        movement_variance = np.var(diff_scores)
+        avg_movement = np.mean(diff_scores)
+        
+        return {
+            "valid": True,
+            "flux_score": float(movement_variance),
+            "avg_movement": float(avg_movement),
+            "interpretation": "High temporal instability (Glitchy/AI)" if movement_variance > 10000000 else "Stable motion"
         }
 
     except Exception as e:
