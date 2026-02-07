@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
-from app.utils import download_and_process_video, extract_video_metadata
+from app.utils import download_and_process_video, extract_video_metadata, perform_ela_analysis
 
 # force load env
 BASE_DIR = Path(__file__).resolve().parent.parent 
@@ -50,11 +50,11 @@ async def analyze_video_logic(video_url: str):
         video_path = download_and_process_video(video_url)
 
         # metadata scan
-        print("🔍 Scanning Metadata...")
+        print("Scanning Metadata...")
         metadata_result = extract_video_metadata(video_path)
 
         # error level analysis scan
-        print("🔬 Running Error Level Analysis (ELA)...")
+        print("Running Error Level Analysis (ELA)...")
         ela_result = perform_ela_analysis(video_path)
 
         # store summary of metadata, so gemini has more to work off of
