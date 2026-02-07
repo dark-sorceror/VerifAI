@@ -14,7 +14,7 @@ load_dotenv(dotenv_path=ENV_PATH, verbose=True)
 
 # configure the key 
 api_key = os.getenv("GEMINI_API_KEY")
-print(f"🔑 DEBUG: Loaded API Key? {'YES' if api_key else 'NO'}") # print statement for testing
+print(f"DEBUG: Loaded API Key? {'YES' if api_key else 'NO'}") # print statement for testing
 
 if not api_key:
     raise ValueError("CRITICAL: GEMINI_API_KEY not found in .env file.")
@@ -52,9 +52,16 @@ async def analyze_video_logic(video_url: str):
         # metadata scan
         print("🔍 Scanning Metadata...")
         metadata_result = extract_video_metadata(video_path)
-        
+
+        # error level analysis scan
+        print("🔬 Running Error Level Analysis (ELA)...")
+        ela_result = perform_ela_analysis(video_path)
+
         # store summary of metadata, so gemini has more to work off of
         metadata_summary = f"Metadata Findings: Encoder={metadata_result.get('encoder')}, Suspicious Flags={metadata_result.get('suspicious_indicators')}"
+
+        # store summary of ela, so gemini has even more to go off of
+        ela_summary = f"ELA Analysis: Score={ela_result.get('ela_score')}, Interpretation={ela_result.get('interpretation')}"
 
         # send to gemini
         print("Uploading to Gemini...")
@@ -75,8 +82,9 @@ async def analyze_video_logic(video_url: str):
         prompt = f"""
         You are a Digital Forensics Expert. Analyze this video for AI generation.
         
-        [HARD EVIDENCE FROM FILE METADATA]:
-        {metadata_summary}
+        [HARD EVIDENCE]:
+        1. {metadata_summary}
+        2. {ela_summary}
         
         Step 1: Analyze the Physics. Do objects move naturally? Is gravity respected?
         Step 2: Analyze the Anatomy. Are hands/fingers consistent? Do eyes blink naturally?
@@ -105,7 +113,8 @@ async def analyze_video_logic(video_url: str):
 
         # put metadata into final JSON
         result["hard_science"] = {
-            "metadata_scan": metadata_result
+            "metadata_scan": metadata_result,
+            "ela_scan": ela_result
         }
 
         cache.setex(video_id, 86400, json.dumps(result))
