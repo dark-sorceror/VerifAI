@@ -1,0 +1,1 @@
+# Entry point, receives request from chrome extension and passes it to the core logic
