@@ -1,26 +1,33 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from app.core import analyze_video_logic
+from typing import Optional
+from app.core import analyze_video_logic, analyze_text_logic
 
-# Initialize the app
 app = FastAPI(title="AI-Detector Backend")
 
-# Define the expected JSON body
-class VideoRequest(BaseModel):
-    url: str
+# Accepts url OR text (next addition is audio)
+class AnalyzeRequest(BaseModel):
+    url: Optional[str] = None
+    text: Optional[str] = None
 
 @app.get("/")
 def health_check():
-    """Simple health check for DigitalOcean"""
-    return {"status": "active", "service": "AI-Detector AI"}
+    return {"status": "active", "service": "AI-Detector"}
 
 @app.post("/analyze")
-async def analyze_video(request: VideoRequest):
+async def analyze_content(request: AnalyzeRequest):
     """
-    Endpoint called by the Chrome Extension.
-    Receives { "url": "..." } -> Returns Analysis JSON
+    Smart Endpoint:
+    - If 'url' is provided -> Video Analysis
+    - If 'text' is provided -> Text Analysis
     """
-    try:
+    if request.url:
+        print(f"Received Video Request: {request.url}")
         return await analyze_video_logic(request.url)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    
+    elif request.text:
+        print(f"Received Text Request: {request.text[:30]}...")
+        return await analyze_text_logic(request.text)
+    
+    else:
+        raise HTTPException(status_code=400, detail="Please provide either 'url' or 'text'")
