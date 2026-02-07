@@ -1,2 +1,5 @@
 .vscode
 .gitattributes
+.env
+/venv
+__pycache__/
