@@ -65,13 +65,20 @@ async def analyze_video_logic(video_url: str):
         # analysis
         print("Running Analysis...")
         prompt = """
-        You are an AI-Detector, a digital forensics AI. Analyze this video for deepfakes.
+        You are a Digital Forensics Expert. Analyze this video for AI generation.
+        Step 1: Analyze the Physics. Do objects move naturally? Is gravity respected?
+        Step 2: Analyze the Anatomy. Are hands/fingers consistent? Do eyes blink naturally?
+        Step 3: Analyze the Logic. Is the human behavior survival-oriented and rational?
+        Step 4: Analyze the Textures. Is skin too smooth? Is lighting consistent?
+
+        Step 5: Synthesize a Verdict. IF there are strong logical or physical flaws, the video is likely FAKE, even if it looks visually high-quality.
+
         Return JSON ONLY:
         {
-            "Detector_score": int (0-100),
-            "verdict": "Real" | "Fake",
-            "forensics": { "visual_anomalies": [], "audio_anomalies": [] },
-            "content_analysis": { "logical_flaws": [], "sentiment": "" }
+        "thinking_process": "Summarize your step-by-step analysis here...",
+        "veritas_score": int (0-100),
+        "verdict": "Real" | "Fake" | "Uncertain",
+        ...
         }
         """
 
