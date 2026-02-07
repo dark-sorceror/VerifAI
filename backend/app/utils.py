@@ -65,16 +65,16 @@ async def analyze_text_logic(text_content: str):
             contents=[prompt, text_content]
         )
         
-        # Clean JSON
+        # clean JSON
         raw_text = response.text.replace("```json", "").replace("```", "").strip()
         result = json.loads(raw_text)
 
-        # 3. Cache Result
+        # cache result
         cache.setex(text_id, 86400, json.dumps(result))
         return result
 
     except Exception as e:
-        print(f"❌ Text Error: {e}")
+        print(f"Text Error: {e}")
         return {
             "Detector_score": 0, "verdict": "Error",
             "content_analysis": {"error": str(e)}
