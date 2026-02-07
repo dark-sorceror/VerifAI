@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
-from app.utils import download_and_process_video
+from app.utils import download_and_process_video, extract_video_metadata
 
 # force load env
 BASE_DIR = Path(__file__).resolve().parent.parent 
@@ -40,21 +40,26 @@ async def analyze_video_logic(video_url: str):
     video_id = hashlib.md5(video_url.encode()).hexdigest()
     
     if cached := cache.get(video_id):
-        print(f"⚡ Cache HIT: {video_url}")
+        print(f"Cache hit: {video_url}")
         return json.loads(cached)
 
-    print(f"Cache MISS: {video_url}. Starting analysis...")
+    print(f"Cache miss: {video_url}. Starting analysis...")
 
     video_path = None
     try:
-        # download
         video_path = download_and_process_video(video_url)
 
-        # upload
+        # metadata scan
+        print("🔍 Scanning Metadata...")
+        metadata_result = extract_video_metadata(video_path)
+        
+        # store summary of metadata, so gemini has more to work off of
+        metadata_summary = f"Metadata Findings: Encoder={metadata_result.get('encoder')}, Suspicious Flags={metadata_result.get('suspicious_indicators')}"
+
+        # send to gemini
         print("Uploading to Gemini...")
         video_file = client.files.upload(file=video_path)
 
-        # poll processing
         while video_file.state.name == "PROCESSING":
             time.sleep(2)
             video_file = client.files.get(name=video_file.name)
@@ -62,10 +67,17 @@ async def analyze_video_logic(video_url: str):
         if video_file.state.name == "FAILED":
             raise ValueError("Gemini failed to process video.")
 
+        if video_file.state.name == "FAILED":
+            raise ValueError("Gemini failed to process video.")
+
         # analysis
         print("Running Analysis...")
-        prompt = """
+        prompt = f"""
         You are a Digital Forensics Expert. Analyze this video for AI generation.
+        
+        [HARD EVIDENCE FROM FILE METADATA]:
+        {metadata_summary}
+
         Step 1: Analyze the Physics. Do objects move naturally? Is gravity respected?
         Step 2: Analyze the Anatomy. Are hands/fingers consistent? Do eyes blink naturally?
         Step 3: Analyze the Logic. Is the human behavior survival-oriented and rational?
@@ -90,20 +102,24 @@ async def analyze_video_logic(video_url: str):
         raw_text = response.text.replace("```json", "").replace("```", "").strip()
         result = json.loads(raw_text)
 
+        # put metadata into final JSON
+        result["hard_science"] = {
+            "metadata_scan": metadata_result
+        }
+
         cache.setex(video_id, 86400, json.dumps(result))
         return result
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
         return {
             "Detector_score": 0, "verdict": "Error",
-            "forensics": {"visual_anomalies": [str(e)]},
+            "forensics": {"error": str(e)},
             "content_analysis": {}
         }
     finally:
         if video_path and os.path.exists(video_path):
             os.remove(video_path)
-
 
 # analyze text
 async def analyze_text_logic(text_content: str):
