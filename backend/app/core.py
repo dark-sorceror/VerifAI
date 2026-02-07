@@ -77,7 +77,7 @@ async def analyze_video_logic(video_url: str):
         
         [HARD EVIDENCE FROM FILE METADATA]:
         {metadata_summary}
-
+        
         Step 1: Analyze the Physics. Do objects move naturally? Is gravity respected?
         Step 2: Analyze the Anatomy. Are hands/fingers consistent? Do eyes blink naturally?
         Step 3: Analyze the Logic. Is the human behavior survival-oriented and rational?
@@ -86,12 +86,13 @@ async def analyze_video_logic(video_url: str):
         Step 5: Synthesize a Verdict. IF there are strong logical or physical flaws, the video is likely FAKE, even if it looks visually high-quality.
 
         Return JSON ONLY:
-        {
-        "thinking_process": "Summarize your step-by-step analysis here...",
-        "veritas_score": int (0-100),
-        "verdict": "Real" | "Fake" | "Uncertain",
-        ...
-        }
+        {{
+            "thinking_process": "Summarize your step-by-step analysis here...",
+            "veritas_score": int (0-100),
+            "verdict": "Real" | "Fake" | "Uncertain",
+            "forensics": {{ "visual_anomalies": [], "audio_anomalies": [] }},
+            "content_analysis": {{ "logical_flaws": [], "sentiment": "" }}
+        }}
         """
 
         response = client.models.generate_content(
@@ -111,7 +112,7 @@ async def analyze_video_logic(video_url: str):
         return result
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return {
             "Detector_score": 0, "verdict": "Error",
             "forensics": {"error": str(e)},
