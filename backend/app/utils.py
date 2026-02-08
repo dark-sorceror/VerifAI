@@ -1,0 +1,354 @@
+import yt_dlp
+import uuid
+import os
+import subprocess
+import json
+import cv2 # for ELA and frame-to-frame consistency
+import numpy as np
+from PIL import Image, ImageChops
+import requests # image analyzation
+
+def download_and_process_video(url: str) -> str:
+    """
+    Downloads video from YouTube, X, Insta, TikTok, etc.
+    """
+    filename = f"/tmp/{uuid.uuid4()}.mp4" # (Or use tempfile.gettempdir() for Windows)
+    
+    # fix for windows if you haven't done it yet
+    import tempfile
+    filename = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.mp4")
+
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': filename,
+        'noplaylist': True,
+        'quiet': True,
+        'overwrites': True,
+        
+        # pretend to be a real Chrome browser on Windows
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        
+        'referer': 'https://www.google.com/',
+        
+        'geo_bypass': True,
+        
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        return filename
+    except Exception as e:
+        if os.path.exists(filename):
+            os.remove(filename)
+        raise RuntimeError(f"Video download failed: {str(e)}")
+    
+def download_image(url: str) -> str:
+    """
+    Downloads a static image from a URL.
+    """
+    try:
+        # imitate a real person on a browser
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+        response = requests.get(url, stream=True, timeout=10)
+        response.raise_for_status()
+        
+        # Save to temp file
+        file_ext = url.split('.')[-1].split('?')[0]
+        if len(file_ext) > 4 or len(file_ext) < 2: 
+            file_ext = "jpg" # let fallback be jpg
+            
+        filename = f"/tmp/{uuid.uuid4()}.{file_ext}"
+        
+        with open(filename, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                
+        return filename
+    except Exception as e:
+        raise RuntimeError(f"Image download failed: {e}")
+
+def extract_image_metadata(image_path: str) -> dict:
+    """
+    Extracts EXIF data from images.
+    Real photos often have 'Make', 'Model', 'ISOSpeedRatings'.
+    AI images usually have empty EXIF or 'Software: Adobe'.
+    """
+    try:
+        img = Image.open(image_path)
+        exif_data = img._getexif()
+        
+        if not exif_data:
+            return {"valid": True, "source": "Unknown/Stripped", "is_suspicious": True}
+            
+        # Map EXIF tags to readable names
+        # 271: Make, 272: Model, 305: Software, 306: DateTime
+        make = exif_data.get(271)
+        model = exif_data.get(272)
+        software = exif_data.get(305)
+        
+        is_suspicious = False
+        if not make and not model:
+            is_suspicious = True
+            
+        return {
+            "valid": True,
+            "make": make,
+            "model": model,
+            "software": software,
+            "is_suspicious": is_suspicious,
+            "note": "Lack of camera data (Make/Model) is common in AI and screenshots."
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+def perform_image_ela(image_path: str) -> dict:
+    """
+    Performs Error Level Analysis on a static image.
+    (Simplified version of the video ELA, just without frame extraction)
+    """
+    try:
+        original = Image.open(image_path).convert("RGB")
+        
+        # Resave at 90% quality to see difference
+        import io
+        buffer = io.BytesIO()
+        original.save(buffer, "JPEG", quality=90)
+        buffer.seek(0)
+        compressed = Image.open(buffer)
+        
+        # Calculate Difference
+        ela_image = ImageChops.difference(original, compressed)
+        ela_np = np.array(ela_image)
+        
+        # Calculate Score
+        mean_noise = np.mean(ela_np)
+        max_diff = np.max(ela_np)
+        
+        return {
+            "valid": True,
+            "ela_score": float(mean_noise),
+            "max_difference": int(max_diff),
+            "interpretation": "Low noise (Smooth/Artificial)" if mean_noise < 2.5 else "High noise (Natural)"
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+async def analyze_text_logic(text_content: str):
+    """
+    Analyzes raw text for AI generation patterns.
+    """
+    # cache check
+    text_id = hashlib.md5(text_content.encode()).hexdigest()
+    
+    if cached := cache.get(text_id):
+        print(f"⚡ Text Cache HIT")
+        return json.loads(cached)
+
+    print(f"Text Cache MISS. Analyzing...")
+
+    try:
+        # gemini analysis
+        prompt = """
+        You are an AI-Detector. Analyze this text to determine if it was generated by an AI/LLM.
+        Look for: overly formal tone, lack of personal anecdote, repetitive sentence structure, and 'hallucination' patterns.
+
+        Return JSON ONLY:
+        {
+            "Detector_score": int (0-100, where 100 is definitely AI),
+            "verdict": "Human" | "AI-Generated" | "Mixed",
+            "content_analysis": {
+                "writing_style": "Formal/Casual/Robotic",
+                "indicators": ["list of specific phrases or patterns found"]
+            }
+        }
+        """
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt, text_content]
+        )
+        
+        # clean JSON
+        raw_text = response.text.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw_text)
+
+        # cache result
+        cache.setex(text_id, 86400, json.dumps(result))
+        return result
+
+    except Exception as e:
+        print(f"Text Error: {e}")
+        return {
+            "Detector_score": 0, "verdict": "Error",
+            "content_analysis": {"error": str(e)}
+        }
+    
+def extract_video_metadata(file_path: str) -> dict:
+    """
+    Scans video file headers using ffprobe to find:
+    1. Encoder Name (Real cameras vs FFmpeg/Lavf)
+    2. Duration & Bitrate
+    3. Specific AI metadata tags (if present)
+    """
+    try:
+        # run ffprobe to get JSON output of file format
+        cmd = [
+            "ffprobe", 
+            "-v", "quiet", 
+            "-print_format", "json", 
+            "-show_format", 
+            "-show_streams", 
+            file_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return {"error": "ffprobe failed"}
+
+        data = json.loads(result.stdout)
+        format_info = data.get("format", {})
+        tags = format_info.get("tags", {})
+
+        # look for suspicious indicators
+        encoder = tags.get("encoder", "Unknown")
+        major_brand = tags.get("major_brand", "Unknown")
+        
+        # logical checks
+        is_suspicious = False
+        suspicion_reason = []
+
+        # Check  for Generic FFmpeg encoding (common in AI output, but also YouTube)
+        if "Lavf" in encoder:
+            suspicion_reason.append("Generic Lavf/FFmpeg encoder detected (Could be AI or Web-Re-encoded)")
+        
+        # Check for Missing Camera Data (Real files usually have 'creation_time', 'location', etc.)
+        if "make" not in tags and "model" not in tags:
+            suspicion_reason.append("No Camera Manufacturer/Model metadata found")
+
+        return {
+            "valid": True,
+            "duration": format_info.get("duration"),
+            "format": format_info.get("format_name"),
+            "encoder": encoder,
+            "suspicious_indicators": suspicion_reason,
+            "raw_tags": tags # for debugging
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+    
+def perform_ela_analysis(video_path: str) -> dict:
+    """
+    Extracts a frame, performs Error Level Analysis (ELA), 
+    and calculates a 'Noise Consistency Score'.
+    """
+    try:
+        # 1. Extract a frame from the middle of the video
+        cap = cv2.VideoCapture(video_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count // 2) # Jump to middle
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret:
+            return {"valid": False, "error": "Could not extract frame"}
+
+        # 2. Convert to PIL Image
+        # OpenCV uses BGR, PIL uses RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        original = Image.fromarray(frame_rgb)
+
+        # 3. Perform ELA
+        # Save compressed version to a temp buffer
+        import io
+        buffer = io.BytesIO()
+        original.save(buffer, "JPEG", quality=90)
+        buffer.seek(0)
+        compressed = Image.open(buffer)
+
+        # 4. Calculate Difference (The ELA)
+        ela_image = ImageChops.difference(original, compressed)
+        
+        # 5. Calculate Statistics (The "Score")
+        extrema = ela_image.getextrema()
+        max_diff = max([ex[1] for ex in extrema])
+        
+        # Convert to numpy to get average noise level
+        ela_np = np.array(ela_image)
+        mean_noise = np.mean(ela_np)
+
+        # AI visuals tend to have lower ELA noise (too smooth) or specific high-contrast edges
+        # This is a heuristic: Real photos usually have higher, uniform noise.
+        
+        return {
+            "valid": True,
+            "ela_score": float(mean_noise),
+            "max_difference": int(max_diff),
+            "interpretation": "Low noise (Smooth/Artificial)" if mean_noise < 2.0 else "High noise (Natural/Grainy)"
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+    
+def analyze_frame_consistency(video_path: str) -> dict:
+    """
+    Analyzes temporal stability.
+    AI videos often have 'shimmering' or inconsistent object coherence between frames.
+    We compare consecutive frames to measure average pixel difference (flux).
+    """
+    try:
+        cap = cv2.VideoCapture(video_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # analyze a 1-second chunk from the middle (approx 30 frames)
+        start_frame = max(0, frame_count // 2)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        
+        prev_gray = None
+        diff_scores = []
+        
+        # analyze up to 30 frames
+        for _ in range(30):
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # convert to grayscale for simpler math
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            if prev_gray is not None:
+                # Calculate absolute difference between current and previous frame
+                score = cv2.absdiff(prev_gray, gray)
+                non_zero_count = np.count_nonzero(score)
+                diff_scores.append(non_zero_count)
+            
+            prev_gray = gray
+            
+        cap.release()
+        
+        if not diff_scores:
+            return {"valid": False, "error": "Not enough frames to analyze"}
+
+        # Calculate statistics
+        # Variance: How "jerky" the movement is
+        # Mean: How much movement there is overall
+        movement_variance = np.var(diff_scores)
+        avg_movement = np.mean(diff_scores)
+        
+        return {
+            "valid": True,
+            "flux_score": float(movement_variance),
+            "avg_movement": float(avg_movement),
+            "interpretation": "High temporal instability (Glitchy/AI)" if movement_variance > 10000000 else "Stable motion"
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}

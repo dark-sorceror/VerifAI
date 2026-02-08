@@ -1,0 +1,12 @@
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart
+requests
+yt-dlp==2024.11.18
+google-genai==1.0.0
+redis==5.0.1
+python-dotenv
+fakeredis
+opencv-python
+numpy
+pillow
