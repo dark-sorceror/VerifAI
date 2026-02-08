@@ -1,6 +1,8 @@
 import yt_dlp
 import uuid
 import os
+import subprocess
+import json
 
 def download_and_process_video(url: str) -> str:
     """
@@ -79,3 +81,57 @@ async def analyze_text_logic(text_content: str):
             "Detector_score": 0, "verdict": "Error",
             "content_analysis": {"error": str(e)}
         }
+    
+def extract_video_metadata(file_path: str) -> dict:
+    """
+    Scans video file headers using ffprobe to find:
+    1. Encoder Name (Real cameras vs FFmpeg/Lavf)
+    2. Duration & Bitrate
+    3. Specific AI metadata tags (if present)
+    """
+    try:
+        # run ffprobe to get JSON output of file format
+        cmd = [
+            "ffprobe", 
+            "-v", "quiet", 
+            "-print_format", "json", 
+            "-show_format", 
+            "-show_streams", 
+            file_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return {"error": "ffprobe failed"}
+
+        data = json.loads(result.stdout)
+        format_info = data.get("format", {})
+        tags = format_info.get("tags", {})
+
+        # look for suspicious indicators
+        encoder = tags.get("encoder", "Unknown")
+        major_brand = tags.get("major_brand", "Unknown")
+        
+        # logical checks
+        is_suspicious = False
+        suspicion_reason = []
+
+        # Check  for Generic FFmpeg encoding (common in AI output, but also YouTube)
+        if "Lavf" in encoder:
+            suspicion_reason.append("Generic Lavf/FFmpeg encoder detected (Could be AI or Web-Re-encoded)")
+        
+        # Check for Missing Camera Data (Real files usually have 'creation_time', 'location', etc.)
+        if "make" not in tags and "model" not in tags:
+            suspicion_reason.append("No Camera Manufacturer/Model metadata found")
+
+        return {
+            "valid": True,
+            "duration": format_info.get("duration"),
+            "format": format_info.get("format_name"),
+            "encoder": encoder,
+            "suspicious_indicators": suspicion_reason,
+            "raw_tags": tags # for debugging
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}

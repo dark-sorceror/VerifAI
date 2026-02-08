@@ -6,7 +6,7 @@ import time
 API_URL = "http://127.0.0.1:8000/analyze"
 
 # "Me at the zoo" - The oldest video on YouTube (19 seconds, guaranteed to work)
-TEST_VIDEO = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+TEST_VIDEO = "https://www.youtube.com/watch?v=jNQXAC9IVRw&vl=en"
 
 def test_AIDetector():
     print(f"Sending request to AI-Detector for: {TEST_VIDEO}")
