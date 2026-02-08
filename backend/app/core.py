@@ -5,8 +5,12 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
-from app.utils import download_and_process_video, extract_video_metadata, perform_ela_analysis
-
+from app.utils import (
+    download_and_process_video, 
+    extract_video_metadata, 
+    perform_ela_analysis,
+    analyze_frame_consistency
+)
 # force load env
 BASE_DIR = Path(__file__).resolve().parent.parent 
 ENV_PATH = BASE_DIR / ".env"
