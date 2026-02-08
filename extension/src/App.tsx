@@ -10,10 +10,10 @@ interface AnalysisResult {
 
 function App() {
     const [tweetText, setTweetText] = useState<string | null>(null);
-    
+
     const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    
+
     const [status, setStatus] = useState<string>("Ready to extract");
 
     const getTweetFromPage = () => {
@@ -70,13 +70,16 @@ function App() {
         setStatus("Analyzing with AI...");
 
         try {
-            const response = await fetch("https://seal-app-d2359.ondigitalocean.app//analyze", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
+            const response = await fetch(
+                "https://seal-app-d2359.ondigitalocean.app/analyze",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ text: tweetText }),
                 },
-                body: JSON.stringify({ text: tweetText }),
-            });
+            );
 
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
@@ -105,11 +108,11 @@ function App() {
 
     return (
         <div className="container">
-            <h1>AI Truth Checker</h1>
+            <h1>VerifAI</h1>
 
             <div className="card">
                 <button onClick={handleExtract} disabled={isLoading}>
-                    1. Extract Tweet
+                    Extract Tweet
                 </button>
             </div>
 
@@ -119,17 +122,23 @@ function App() {
                     <p style={{ fontStyle: "italic", fontSize: "0.9em" }}>
                         "{tweetText.substring(0, 100)}..."
                     </p>
-                    
-                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                        <button 
-                            className="secondary" 
-                            onClick={copyToClipboard}
-                        >
+
+                    <div
+                        style={{
+                            display: "flex",
+                            gap: "10px",
+                            marginTop: "10px",
+                        }}
+                    >
+                        <button className="secondary" onClick={copyToClipboard}>
                             Copy Text
                         </button>
-                        
-                        <button 
-                            style={{ backgroundColor: "#4285F4", color: "white" }}
+
+                        <button
+                            style={{
+                                backgroundColor: "#4285F4",
+                                color: "white",
+                            }}
                             onClick={handleAnalyze}
                             disabled={isLoading}
                         >
@@ -140,23 +149,33 @@ function App() {
             )}
 
             {analysis && (
-                <div className="analysis-box" style={{ 
-                    marginTop: "20px", 
-                    padding: "15px", 
-                    border: "1px solid #ccc", 
-                    borderRadius: "8px", 
-                    textAlign: "left",
-                    backgroundColor: analysis.score > 70 ? "#e6fffa" : "#fffce6"
-                }}>
+                <div
+                    className="analysis-box"
+                    style={{
+                        marginTop: "20px",
+                        padding: "15px",
+                        border: "1px solid #ccc",
+                        borderRadius: "8px",
+                        textAlign: "left",
+                        backgroundColor:
+                            analysis.score > 70 ? "#e6fffa" : "#fffce6",
+                    }}
+                >
                     <h2>Trust Score: {analysis.score}/100</h2>
-                    <p><strong>Reasoning:</strong> {analysis.reasoning}</p>
-                    
+                    <p>
+                        <strong>Reasoning:</strong> {analysis.reasoning}
+                    </p>
+
                     <h4>Sources:</h4>
                     <ul>
                         {Array.isArray(analysis.sources) ? (
                             analysis.sources.map((source, i) => (
                                 <li key={i}>
-                                    <a href={source} target="_blank" rel="noopener noreferrer">
+                                    <a
+                                        href={source}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
                                         {source}
                                     </a>
                                 </li>
