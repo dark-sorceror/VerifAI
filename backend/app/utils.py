@@ -1,24 +1,32 @@
 import yt_dlp
 import uuid
 import os
+import subprocess
+import json
+import cv2 # for ELA and frame-to-frame consistency
+import numpy as np
+from PIL import Image, ImageChops
 
 def download_and_process_video(url: str) -> str:
     """
-    Downloads video from a URL.
-    Tries to find a pre-merged MP4 to avoid requiring FFmpeg for merging.
+    Downloads a video from YouTube (or others) using yt-dlp.
+    Optimized to handle both modern 4K videos and ancient 240p videos.
     """
     filename = f"/tmp/{uuid.uuid4()}.mp4"
-    
-    # Ensure the temp directory exists
     os.makedirs("/tmp", exist_ok=True)
     
     ydl_opts = {
-        #prefer mp4, but take anything best if mp4 fails
-        'format': 'best[ext=mp4]/best',
+        # TRY to get MP4 video+audio, BUT fall back to 'best' (single file) if needed.
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': filename,
         'noplaylist': True,
         'quiet': True,
         'overwrites': True,
+        # ffmpeg will converts non-mp4 videos
+        'postprocessors': [{ 
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
     }
 
     try:
@@ -26,6 +34,7 @@ def download_and_process_video(url: str) -> str:
             ydl.download([url])
         return filename
     except Exception as e:
+        # Cleanup if failed
         if os.path.exists(filename):
             os.remove(filename)
         raise RuntimeError(f"Video download failed: {str(e)}")
@@ -41,7 +50,7 @@ async def analyze_text_logic(text_content: str):
         print(f"⚡ Text Cache HIT")
         return json.loads(cached)
 
-    print(f"🐢 Text Cache MISS. Analyzing...")
+    print(f"Text Cache MISS. Analyzing...")
 
     try:
         # gemini analysis
@@ -79,3 +88,165 @@ async def analyze_text_logic(text_content: str):
             "Detector_score": 0, "verdict": "Error",
             "content_analysis": {"error": str(e)}
         }
+    
+def extract_video_metadata(file_path: str) -> dict:
+    """
+    Scans video file headers using ffprobe to find:
+    1. Encoder Name (Real cameras vs FFmpeg/Lavf)
+    2. Duration & Bitrate
+    3. Specific AI metadata tags (if present)
+    """
+    try:
+        # run ffprobe to get JSON output of file format
+        cmd = [
+            "ffprobe", 
+            "-v", "quiet", 
+            "-print_format", "json", 
+            "-show_format", 
+            "-show_streams", 
+            file_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return {"error": "ffprobe failed"}
+
+        data = json.loads(result.stdout)
+        format_info = data.get("format", {})
+        tags = format_info.get("tags", {})
+
+        # look for suspicious indicators
+        encoder = tags.get("encoder", "Unknown")
+        major_brand = tags.get("major_brand", "Unknown")
+        
+        # logical checks
+        is_suspicious = False
+        suspicion_reason = []
+
+        # Check  for Generic FFmpeg encoding (common in AI output, but also YouTube)
+        if "Lavf" in encoder:
+            suspicion_reason.append("Generic Lavf/FFmpeg encoder detected (Could be AI or Web-Re-encoded)")
+        
+        # Check for Missing Camera Data (Real files usually have 'creation_time', 'location', etc.)
+        if "make" not in tags and "model" not in tags:
+            suspicion_reason.append("No Camera Manufacturer/Model metadata found")
+
+        return {
+            "valid": True,
+            "duration": format_info.get("duration"),
+            "format": format_info.get("format_name"),
+            "encoder": encoder,
+            "suspicious_indicators": suspicion_reason,
+            "raw_tags": tags # for debugging
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+    
+def perform_ela_analysis(video_path: str) -> dict:
+    """
+    Extracts a frame, performs Error Level Analysis (ELA), 
+    and calculates a 'Noise Consistency Score'.
+    """
+    try:
+        # 1. Extract a frame from the middle of the video
+        cap = cv2.VideoCapture(video_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count // 2) # Jump to middle
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret:
+            return {"valid": False, "error": "Could not extract frame"}
+
+        # 2. Convert to PIL Image
+        # OpenCV uses BGR, PIL uses RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        original = Image.fromarray(frame_rgb)
+
+        # 3. Perform ELA
+        # Save compressed version to a temp buffer
+        import io
+        buffer = io.BytesIO()
+        original.save(buffer, "JPEG", quality=90)
+        buffer.seek(0)
+        compressed = Image.open(buffer)
+
+        # 4. Calculate Difference (The ELA)
+        ela_image = ImageChops.difference(original, compressed)
+        
+        # 5. Calculate Statistics (The "Score")
+        extrema = ela_image.getextrema()
+        max_diff = max([ex[1] for ex in extrema])
+        
+        # Convert to numpy to get average noise level
+        ela_np = np.array(ela_image)
+        mean_noise = np.mean(ela_np)
+
+        # AI visuals tend to have lower ELA noise (too smooth) or specific high-contrast edges
+        # This is a heuristic: Real photos usually have higher, uniform noise.
+        
+        return {
+            "valid": True,
+            "ela_score": float(mean_noise),
+            "max_difference": int(max_diff),
+            "interpretation": "Low noise (Smooth/Artificial)" if mean_noise < 2.0 else "High noise (Natural/Grainy)"
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+    
+def analyze_frame_consistency(video_path: str) -> dict:
+    """
+    Analyzes temporal stability.
+    AI videos often have 'shimmering' or inconsistent object coherence between frames.
+    We compare consecutive frames to measure average pixel difference (flux).
+    """
+    try:
+        cap = cv2.VideoCapture(video_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # analyze a 1-second chunk from the middle (approx 30 frames)
+        start_frame = max(0, frame_count // 2)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        
+        prev_gray = None
+        diff_scores = []
+        
+        # analyze up to 30 frames
+        for _ in range(30):
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # convert to grayscale for simpler math
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            if prev_gray is not None:
+                # Calculate absolute difference between current and previous frame
+                score = cv2.absdiff(prev_gray, gray)
+                non_zero_count = np.count_nonzero(score)
+                diff_scores.append(non_zero_count)
+            
+            prev_gray = gray
+            
+        cap.release()
+        
+        if not diff_scores:
+            return {"valid": False, "error": "Not enough frames to analyze"}
+
+        # Calculate statistics
+        # Variance: How "jerky" the movement is
+        # Mean: How much movement there is overall
+        movement_variance = np.var(diff_scores)
+        avg_movement = np.mean(diff_scores)
+        
+        return {
+            "valid": True,
+            "flux_score": float(movement_variance),
+            "avg_movement": float(avg_movement),
+            "interpretation": "High temporal instability (Glitchy/AI)" if movement_variance > 10000000 else "Stable motion"
+        }
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}

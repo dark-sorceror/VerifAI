@@ -7,3 +7,6 @@ google-genai==1.0.0
 redis==5.0.1
 python-dotenv
 fakeredis
+opencv-python
+numpy
+pillow
