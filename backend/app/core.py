@@ -91,24 +91,36 @@ async def analyze_video_logic(video_url: str):
         # analysis
         print("Running Analysis...")
         prompt = f"""
-        You are a Digital Forensics Expert. Analyze this video for AI generation.
+        You are a Digital Forensics Expert. Your job is to distinguish between AI-generated videos (Sora, Runway, Pika) and Real videos.
         
         [HARD EVIDENCE]:
         1. {metadata_summary}
         2. {ela_summary}
         3. {movement_summary}
         
-        Step 1: Analyze the Physics. Do objects move naturally? Is gravity respected?
-        Step 2: Analyze the Anatomy. Are hands/fingers consistent? Do eyes blink naturally?
-        Step 3: Analyze the Logic. Is the human behavior survival-oriented and rational?
-        Step 4: Analyze the Textures. Is skin too smooth? Is lighting consistent?
-
-        Step 5: Synthesize a Verdict. IF there are strong logical or physical flaws, the video is likely FAKE, even if it looks visually high-quality.
+        [CRITICAL RULES]:
+        1. **The "Watermark" Kill Switch:** If you see a watermark or text saying "Sora", "OpenAI", "Runway", "Pika", or "Kling" -> IT IS 100% FAKE. Do not overthink it.
+        2. **ELA Thresholds:**
+           - Score < 1.0: EXTREMELY suspicious. Likely AI (Sora/Runway) or heavy blur.
+           - Score 1.2 - 2.0: Common for compressed YouTube videos (Real).
+           - Score > 2.0: Natural camera noise (Real).
+        3. **Physics vs. Texture:**
+           - Sora/Gen-3 models have PERFECT physics (gravity, collisions). Do not be fooled by good physics.
+           - Look closer at TEXTURES: Is the skin waxy? Do background text characters morph?
+        
+        [THE LOGIC TRAP]:
+        - Do not assume a video is "Real" just because the physics are good. Current AI (Sora) has mastered physics.
+        - Instead, look for "Dream Logic" (e.g., a trash can appearing out of nowhere, or a cat melting into a wall).
+        
+        Step 1: SEARCH FOR WATERMARKS. If found, verdict is FAKE immediately.
+        Step 2: Analyze Textures & ELA. Is ELA < 1.1? If so, be very skeptical.
+        Step 3: Analyze Physics.
+        Step 4: Synthesize Verdict.
 
         Return JSON ONLY:
         {{
-            "thinking_process": "Summarize your step-by-step analysis here...",
-            "veritas_score": int (0-100),
+            "thinking_process": "Step-by-step reasoning...",
+            "ai_probability": int (0-100, where 100 is DEFINITELY AI. If 'Sora' watermark found, set 100.),
             "verdict": "Real" | "Fake" | "Uncertain",
             "forensics": {{ "visual_anomalies": [], "audio_anomalies": [] }},
             "content_analysis": {{ "logical_flaws": [], "sentiment": "" }}
