@@ -42,7 +42,6 @@ except:
     from fakeredis import FakeRedis
     cache = FakeRedis(decode_responses=True)
 
-
 async def analyze_video_logic(video_url: str):
     # cache check
     video_id = hashlib.md5(video_url.encode()).hexdigest()
@@ -222,10 +221,10 @@ async def analyze_image_logic(image_url: str):
         image_path = download_image(image_url)
         
         # 2. Hard Science (Metadata + ELA)
-        print("🔍 Scanning Image Metadata...")
+        print("Scanning Image Metadata...")
         meta_result = extract_image_metadata(image_path)
         
-        print("🔬 Running Image ELA...")
+        print("Running Image ELA...")
         ela_result = perform_image_ela(image_path)
         
         # Summaries for Gemini

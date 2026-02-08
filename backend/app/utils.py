@@ -10,21 +10,29 @@ import requests # image analyzation
 
 def download_and_process_video(url: str) -> str:
     """
-    Downloads a video from YouTube (or others) using yt-dlp.
-    Optimized to handle both modern 4K videos and ancient 240p videos.
+    Downloads video from YouTube, X, Insta, TikTok, etc.
     """
-    filename = f"/tmp/{uuid.uuid4()}.mp4"
-    os.makedirs("/tmp", exist_ok=True)
+    filename = f"/tmp/{uuid.uuid4()}.mp4" # (Or use tempfile.gettempdir() for Windows)
     
+    # fix for windows if you haven't done it yet
+    import tempfile
+    filename = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.mp4")
+
     ydl_opts = {
-        # TRY to get MP4 video+audio, BUT fall back to 'best' (single file) if needed.
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': filename,
         'noplaylist': True,
         'quiet': True,
         'overwrites': True,
-        # ffmpeg will converts non-mp4 videos
-        'postprocessors': [{ 
+        
+        # pretend to be a real Chrome browser on Windows
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        
+        'referer': 'https://www.google.com/',
+        
+        'geo_bypass': True,
+        
+        'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mp4',
         }],
@@ -35,7 +43,6 @@ def download_and_process_video(url: str) -> str:
             ydl.download([url])
         return filename
     except Exception as e:
-        # cleanup if failed
         if os.path.exists(filename):
             os.remove(filename)
         raise RuntimeError(f"Video download failed: {str(e)}")
