@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from app.core import analyze_video_logic, analyze_text_logic
+from app.core import analyze_video_logic, analyze_text_logic, analyze_image_logic
 
 app = FastAPI(title="AI-Detector Backend")
 
@@ -31,3 +31,11 @@ async def analyze_content(request: AnalyzeRequest):
     
     else:
         raise HTTPException(status_code=400, detail="Please provide either 'url' or 'text'")
+    
+class ImageRequest(BaseModel):
+    url: str
+
+@app.post("/analyze/image")
+async def analyze_image_endpoint(request: ImageRequest):
+    print(f"Received Image Request: {request.url}")
+    return await analyze_image_logic(request.url)

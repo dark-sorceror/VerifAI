@@ -6,6 +6,7 @@ import json
 import cv2 # for ELA and frame-to-frame consistency
 import numpy as np
 from PIL import Image, ImageChops
+import requests # image analyzation
 
 def download_and_process_video(url: str) -> str:
     """
@@ -34,10 +35,104 @@ def download_and_process_video(url: str) -> str:
             ydl.download([url])
         return filename
     except Exception as e:
-        # Cleanup if failed
+        # cleanup if failed
         if os.path.exists(filename):
             os.remove(filename)
         raise RuntimeError(f"Video download failed: {str(e)}")
+    
+def download_image(url: str) -> str:
+    """
+    Downloads a static image from a URL.
+    """
+    try:
+        # imitate a real person on a browser
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+        response = requests.get(url, stream=True, timeout=10)
+        response.raise_for_status()
+        
+        # Save to temp file
+        file_ext = url.split('.')[-1].split('?')[0]
+        if len(file_ext) > 4 or len(file_ext) < 2: 
+            file_ext = "jpg" # let fallback be jpg
+            
+        filename = f"/tmp/{uuid.uuid4()}.{file_ext}"
+        
+        with open(filename, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                
+        return filename
+    except Exception as e:
+        raise RuntimeError(f"Image download failed: {e}")
+
+def extract_image_metadata(image_path: str) -> dict:
+    """
+    Extracts EXIF data from images.
+    Real photos often have 'Make', 'Model', 'ISOSpeedRatings'.
+    AI images usually have empty EXIF or 'Software: Adobe'.
+    """
+    try:
+        img = Image.open(image_path)
+        exif_data = img._getexif()
+        
+        if not exif_data:
+            return {"valid": True, "source": "Unknown/Stripped", "is_suspicious": True}
+            
+        # Map EXIF tags to readable names
+        # 271: Make, 272: Model, 305: Software, 306: DateTime
+        make = exif_data.get(271)
+        model = exif_data.get(272)
+        software = exif_data.get(305)
+        
+        is_suspicious = False
+        if not make and not model:
+            is_suspicious = True
+            
+        return {
+            "valid": True,
+            "make": make,
+            "model": model,
+            "software": software,
+            "is_suspicious": is_suspicious,
+            "note": "Lack of camera data (Make/Model) is common in AI and screenshots."
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+def perform_image_ela(image_path: str) -> dict:
+    """
+    Performs Error Level Analysis on a static image.
+    (Simplified version of the video ELA, just without frame extraction)
+    """
+    try:
+        original = Image.open(image_path).convert("RGB")
+        
+        # Resave at 90% quality to see difference
+        import io
+        buffer = io.BytesIO()
+        original.save(buffer, "JPEG", quality=90)
+        buffer.seek(0)
+        compressed = Image.open(buffer)
+        
+        # Calculate Difference
+        ela_image = ImageChops.difference(original, compressed)
+        ela_np = np.array(ela_image)
+        
+        # Calculate Score
+        mean_noise = np.mean(ela_np)
+        max_diff = np.max(ela_np)
+        
+        return {
+            "valid": True,
+            "ela_score": float(mean_noise),
+            "max_difference": int(max_diff),
+            "interpretation": "Low noise (Smooth/Artificial)" if mean_noise < 2.5 else "High noise (Natural)"
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 async def analyze_text_logic(text_content: str):
     """

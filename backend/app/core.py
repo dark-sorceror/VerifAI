@@ -8,9 +8,13 @@ from google import genai
 from app.utils import (
     download_and_process_video, 
     extract_video_metadata, 
-    perform_ela_analysis,
-    analyze_frame_consistency
+    perform_ela_analysis, 
+    analyze_frame_consistency,
+    download_image, 
+    extract_image_metadata, 
+    perform_image_ela
 )
+
 # force load env
 BASE_DIR = Path(__file__).resolve().parent.parent 
 ENV_PATH = BASE_DIR / ".env"
@@ -203,3 +207,93 @@ async def analyze_text_logic(text_content: str):
             "Detector_score": 0, "verdict": "Error",
             "content_analysis": {"error": str(e)}
         }
+    
+async def analyze_image_logic(image_url: str):
+    # cache check
+    image_id = hashlib.md5(image_url.encode()).hexdigest()
+    if cached := cache.get(image_id):
+        print(f"Image Cache HIT: {image_url}")
+        return json.loads(cached)
+
+    print(f"Image Cache MISS: {image_url}. Starting analysis...")
+    
+    image_path = None
+    try:
+        image_path = download_image(image_url)
+        
+        # 2. Hard Science (Metadata + ELA)
+        print("🔍 Scanning Image Metadata...")
+        meta_result = extract_image_metadata(image_path)
+        
+        print("🔬 Running Image ELA...")
+        ela_result = perform_image_ela(image_path)
+        
+        # Summaries for Gemini
+        meta_summary = f"Metadata: Camera={meta_result.get('make')} {meta_result.get('model')}, Software={meta_result.get('software')}"
+        ela_summary = f"ELA Score: {ela_result.get('ela_score')} ({ela_result.get('interpretation')})"
+        
+        # 3. Upload to Gemini
+        print("Uploading to Gemini...")
+        image_file = client.files.upload(file=image_path)
+        
+        # 4. Analysis Prompt (to add: trained LLM input on the matter - or rather, replacing this section as a whole with the trained LLM)
+        print("Running Gemini Vision...")
+        prompt = f"""
+        You are a Digital Forensics Expert. Analyze this IMAGE for AI generation.
+        
+        [HARD EVIDENCE]:
+        1. {meta_summary}
+        2. {ela_summary}
+        
+        [CRITICAL CONTEXT]:
+        1. **Stock Photo Warning:** High-quality stock photos (Unsplash, Pexels, Getty) often have STRIPPED metadata and LOW ELA scores due to compression/editing.
+           - DO NOT assume "No Metadata" + "Smoothness" = AI automatically.
+        2. **The "Anatomy" Check:** AI generation fails at details. Look for:
+           - Animal paws (fused toes, wrong number of claws).
+           - Text (gibberish/alien symbols).
+           - Eyes (pupils that aren't round, mismatched reflections).
+           - Blending (objects melting into each other).
+        3. **Verdict Logic:**
+           - If Anatomy/Physics is FLAWLESS -> Verdict is REAL (likely a Stock Photo), even if ELA is low.
+           - If Anatomy has errors (6 fingers, floating objects, weird paws) -> Verdict is FAKE.
+           - If ELA is Low (< 1.5) AND you see "Glossy/Plastic" skin/fur -> Verdict is FAKE.
+
+        Step 1: Analyze Anatomy (Hands, Paws, Eyes). Any errors?
+        Step 2: Analyze Textures. Is it "Plastic" (AI) or "Natural" (Real)?
+        Step 3: Synthesize Verdict.
+           - Perfect Anatomy + Low ELA = likely Real (Processed/Stock).
+           - Flawed Anatomy + Low ELA = definitely AI.
+
+        Return JSON ONLY:
+        {{
+            "thinking_process": "Reasoning...",
+            "ai_probability": int (0-100),
+            "verdict": "Real" | "Fake" | "Uncertain",
+            "forensics": {{ "visual_anomalies": [] }}
+        }}
+        """
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt, image_file]
+        )
+        
+        raw_text = response.text.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw_text)
+        
+        # Inject Hard Science
+        result["hard_science"] = {
+            "metadata": meta_result,
+            "ela": ela_result
+        }
+        
+        cache.setex(image_id, 86400, json.dumps(result))
+        return result
+
+    except Exception as e:
+        print(f"Image Error: {e}")
+        return {"verdict": "Error", "error": str(e)}
+        
+    finally:
+        if image_path and os.path.exists(image_path):
+            os.remove(image_path)
