@@ -1,0 +1,56 @@
+@keyframes shift-gradient {
+    from {
+        background-position-x: 0px, 0px;
+    }
+    to {
+        background-position-x: 0px, 1750px;
+    }
+}
+
+.gradient-box {
+    border: 3px solid transparent;
+
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8))
+            padding-box,
+        repeating-linear-gradient(
+                20deg,
+                #9e7aff 0px,
+                #fe8bbd 150px,
+                #ffbd7a 300px,
+                #f8eac3 450px,
+                #9e7aff 600px
+            )
+            border-box;
+
+    background-size:
+        auto,
+        1750px 100%;
+    background-position:
+        0 0,
+        0 50%;
+    background-repeat: repeat;
+
+    animation: shift-gradient 15s linear infinite;
+
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    transform: translateZ(0);
+}
+
+.gradient-box:hover {
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9))
+            padding-box,
+        repeating-linear-gradient(
+                20deg,
+                #9e7aff 0px,
+                #fe8bbd 150px,
+                #ffbd7a 300px,
+                #f8eac3 450px,
+                #9e7aff 600px
+            )
+            border-box;
+    background-size:
+        auto,
+        1750px 100%;
+}
