@@ -1,0 +1,30 @@
+{
+    "name": "verifai",
+    "version": "1.0.0",
+    "main": "build/desktop/main.js",
+    "scripts": {
+        "dev": "concurrently -k \"npm run dev:ui\" \"npm run dev:electron\"",
+        "dev:ui": "vite",
+        "dev:electron": "wait-on tcp:5173 && tsc -p desktop/tsconfig.json && cross-env NODE_ENV=development electron .",
+        "build": "tsc -p desktop/tsconfig.json && vite build",
+        "pack": "electron-builder --dir",
+        "dist": "electron-builder"
+    },
+    "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "^4.1.18",
+        "@types/react": "^18.2.0",
+        "@types/react-dom": "^18.2.0",
+        "@vitejs/plugin-react": "^5.1.3",
+        "concurrently": "^8.0.0",
+        "cross-env": "^7.0.3",
+        "electron": "^25.0.0",
+        "tailwindcss": "^4.1.18",
+        "typescript": "^5.0.0",
+        "vite": "^7.3.1",
+        "wait-on": "^7.0.0"
+    }
+}

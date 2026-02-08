@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+body {
+    background: transparent;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+}
+
+@keyframes shift-gradient {
+    from {
+        background-position-x: 0px, 0px;
+    }
+    to {
+        background-position-x: 0px, 1750px;
+    }
+}
+
+.god-bar-gradient {
+    background:
+        linear-gradient(rgba(20, 20, 20, 0.85), rgba(30, 30, 30, 0.9))
+            padding-box,
+        repeating-linear-gradient(
+                20deg,
+                #9e7aff 0px,
+                #fe8baec9 150px,
+                #ffbd7a 300px,
+                #f8ead2 450px,
+                #9e7aff 600px
+            )
+            border-box;
+    background-size:
+        auto,
+        1750px 100%;
+    background-position:
+        0 0,
+        0 50%;
+    background-repeat: repeat;
+    animation: shift-gradient 10s linear infinite;
+}
