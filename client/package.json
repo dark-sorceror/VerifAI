@@ -1,15 +1,17 @@
 {
-  "name": "client",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "devDependencies": {
-    "electron": "^40.2.1"
-  }
+    "name": "client",
+    "version": "1.0.0",
+    "main": "src/index.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "tsc && electron .",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "devDependencies": {
+        "electron": "^40.2.1"
+    }
 }
