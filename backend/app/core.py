@@ -61,11 +61,18 @@ async def analyze_video_logic(video_url: str):
         print("Running Error Level Analysis (ELA)...")
         ela_result = perform_ela_analysis(video_path)
 
+        # frame consistency 
+        print("Analyzing Movement Consistency...")
+        movement_result = analyze_frame_consistency(video_path)
+
         # store summary of metadata, so gemini has more to work off of
         metadata_summary = f"Metadata Findings: Encoder={metadata_result.get('encoder')}, Suspicious Flags={metadata_result.get('suspicious_indicators')}"
 
         # store summary of ela, so gemini has even more to go off of
         ela_summary = f"ELA Analysis: Score={ela_result.get('ela_score')}, Interpretation={ela_result.get('interpretation')}"
+
+        # store summary of frame movement
+        movement_summary = f"Movement Stability: Variance={movement_result.get('flux_score')}, AvgFlux={movement_result.get('avg_movement')}"
 
         # send to gemini
         print("Uploading to Gemini...")
@@ -89,6 +96,7 @@ async def analyze_video_logic(video_url: str):
         [HARD EVIDENCE]:
         1. {metadata_summary}
         2. {ela_summary}
+        3. {movement_summary}
         
         Step 1: Analyze the Physics. Do objects move naturally? Is gravity respected?
         Step 2: Analyze the Anatomy. Are hands/fingers consistent? Do eyes blink naturally?
@@ -118,7 +126,8 @@ async def analyze_video_logic(video_url: str):
         # put metadata into final JSON
         result["hard_science"] = {
             "metadata_scan": metadata_result,
-            "ela_scan": ela_result
+            "ela_scan": ela_result,
+            "movement_scan": movement_result
         }
 
         cache.setex(video_id, 86400, json.dumps(result))
