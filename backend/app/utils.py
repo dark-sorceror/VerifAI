@@ -9,21 +9,24 @@ from PIL import Image, ImageChops
 
 def download_and_process_video(url: str) -> str:
     """
-    Downloads video from a URL.
-    Tries to find a pre-merged MP4 to avoid requiring FFmpeg for merging.
+    Downloads a video from YouTube (or others) using yt-dlp.
+    Optimized to handle both modern 4K videos and ancient 240p videos.
     """
     filename = f"/tmp/{uuid.uuid4()}.mp4"
-    
-    # Ensure the temp directory exists
     os.makedirs("/tmp", exist_ok=True)
     
     ydl_opts = {
-        #prefer mp4, but take anything best if mp4 fails
-        'format': 'best[ext=mp4]/best',
+        # TRY to get MP4 video+audio, BUT fall back to 'best' (single file) if needed.
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': filename,
         'noplaylist': True,
         'quiet': True,
         'overwrites': True,
+        # ffmpeg will converts non-mp4 videos
+        'postprocessors': [{ 
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
     }
 
     try:
@@ -31,6 +34,7 @@ def download_and_process_video(url: str) -> str:
             ydl.download([url])
         return filename
     except Exception as e:
+        # Cleanup if failed
         if os.path.exists(filename):
             os.remove(filename)
         raise RuntimeError(f"Video download failed: {str(e)}")
@@ -46,7 +50,7 @@ async def analyze_text_logic(text_content: str):
         print(f"⚡ Text Cache HIT")
         return json.loads(cached)
 
-    print(f"🐢 Text Cache MISS. Analyzing...")
+    print(f"Text Cache MISS. Analyzing...")
 
     try:
         # gemini analysis
