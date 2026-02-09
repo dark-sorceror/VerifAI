@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
+
 import type { SnipCoordinates } from "../types";
 
 interface ScreenshotProps {
@@ -6,51 +7,33 @@ interface ScreenshotProps {
     crop: SnipCoordinates | null;
 }
 
-export const Screenshot: React.FC<ScreenshotProps> = ({
-    imageSrc,
-    crop,
-}) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    useEffect(() => {
-        if (!imageSrc || !crop || !canvasRef.current) return;
-
-        const ctx = canvasRef.current.getContext("2d");
-
-        if (!ctx) return;
-
-        const img = new Image();
-
-        img.onload = () => {
-            canvasRef.current!.width = crop.width;
-            canvasRef.current!.height = crop.height;
-
-            ctx.drawImage(
-                img,
-                crop.x,
-                crop.y,
-                crop.width,
-                crop.height,
-                0,
-                0,
-                crop.width,
-                crop.height,
-            );
-        };
-        img.src = imageSrc;
-    }, [imageSrc, crop]);
+export const Screenshot: React.FC<ScreenshotProps> = ({ imageSrc, crop }) => {
+    if (!imageSrc) return null;
 
     return (
-        <div className="bg-[#1e1e23]/85 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl flex flex-col max-h-[500px]">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">
-                Context
-            </div>
-            <div className="rounded-[10px] overflow-hidden border border-white/10">
-                <canvas
-                    ref={canvasRef}
-                    className="block max-h-[450px] w-auto h-auto max-w-full"
+        <div className="relative group">
+            <div
+                className="
+                rounded-2xl 
+                overflow-hidden 
+                border-2 border-white/20 
+                shadow-2xl 
+                bg-black/50
+                transition-transform hover:scale-[1.02] duration-300
+            "
+            >
+                <img
+                    src={imageSrc}
+                    alt="Snipped Content"
+                    className="max-w-[300px] max-h-[300px] object-contain"
                 />
             </div>
+
+            {crop && (
+                <div className="absolute -bottom-8 left-0 text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {Math.round(crop.width)}x{Math.round(crop.height)}
+                </div>
+            )}
         </div>
     );
 };

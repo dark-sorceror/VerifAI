@@ -14,6 +14,7 @@ function MainUI() {
 
     try {
         const electron = (window as any).require("electron");
+
         ipcRenderer = electron.ipcRenderer;
     } catch (e) {
         console.error("Electron not found");
@@ -105,7 +106,9 @@ function MainUI() {
                 className={`
                     w-[1200px] flex justify-center items-start gap-5 pt-5 transition-opacity duration-300
                     ${
-                        isIslandsVisible || isLoading
+                        isIslandsVisible ||
+                        isLoading ||
+                        status === "UPLOADING..."
                             ? "opacity-100 pointer-events-auto"
                             : "opacity-0 pointer-events-none"
                     }
