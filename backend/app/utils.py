@@ -25,17 +25,13 @@ def download_and_process_video(url: str) -> str:
         'quiet': True,
         'overwrites': True,
         
-        # --- NEW STEALTH SETTINGS ---
-        # 1. Pretend to be a real Chrome browser on Windows
+        # pretend to be a real Chrome browser on Windows
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         
-        # 2. Add referers (some sites block empty referers)
         'referer': 'https://www.google.com/',
         
-        # 3. Geo-bypass (sometimes helps with region locks)
         'geo_bypass': True,
         
-        # 4. Post-processing (Convert whatever we get to MP4)
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mp4',

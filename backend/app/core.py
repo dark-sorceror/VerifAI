@@ -42,7 +42,6 @@ except:
     from fakeredis import FakeRedis
     cache = FakeRedis(decode_responses=True)
 
-
 async def analyze_video_logic(video_url: str):
     # cache check
     video_id = hashlib.md5(video_url.encode()).hexdigest()
