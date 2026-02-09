@@ -1,79 +1,88 @@
-import {
-    ipcMain,
-    BrowserWindow,
-    desktopCapturer,
-    IpcMainEvent,
-} from "electron";
+import { ipcMain, desktopCapturer, screen } from "electron";
 import { getMainWindow, getOverlayWindow } from "./windowManager";
 import { analyzeImageWithBackend } from "./services/api";
-import { SnipCoordinates, SnipPayload } from "../src/types";
 
-export function registerIpcHandlers(): void {
-    ipcMain.on(
-        "set-ignore-mouse-events",
-        (
-            event: IpcMainEvent,
-            ignore: boolean,
-            options?: { forward: boolean },
-        ) => {
-            const win = BrowserWindow.fromWebContents(event.sender);
+export function registerIpcHandlers() {
+    ipcMain.on("snip-complete", async (event, cropData) => {
+        const overlayWindow = getOverlayWindow();
+        const mainWindow = getMainWindow();
 
-            if (win) {
-                win.setIgnoreMouseEvents(ignore, options);
+        if (overlayWindow) {
+            overlayWindow.hide();
+            overlayWindow.webContents.send("reset-snip");
+        }
+
+        try {
+            let { x, y, width, height } = cropData;
+            if (width < 10) width = 10;
+            if (height < 10) height = 10;
+
+            const display = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = display.size;
+
+            const sources = await desktopCapturer.getSources({
+                types: ["screen"],
+                thumbnailSize: {
+                    width: screenWidth * display.scaleFactor,
+                    height: screenHeight * display.scaleFactor,
+                },
+            });
+
+            const primarySource = sources[0];
+            const fullImage = primarySource.thumbnail;
+            const imgSize = fullImage.getSize();
+
+            const scaleX = imgSize.width / screenWidth;
+            const scaleY = imgSize.height / screenHeight;
+
+            const cropRect = {
+                x: Math.round(x * scaleX),
+                y: Math.round(y * scaleY),
+                width: Math.round(width * scaleX),
+                height: Math.round(height * scaleY),
+            };
+
+            const croppedImage = fullImage.crop(cropRect);
+            const base64Image = croppedImage.toDataURL();
+
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+
+                mainWindow.show();
+                mainWindow.setAlwaysOnTop(true);
+                mainWindow.focus();
+
+                setTimeout(async () => {
+                    mainWindow.webContents.send("snip-start", {
+                        image: base64Image,
+                        crop: { x, y, width, height },
+                    });
+
+                    const analysisResult =
+                        await analyzeImageWithBackend(base64Image);
+
+                    mainWindow.webContents.send("snip-success", analysisResult);
+                }, 200);
             }
-        },
-    );
+        } catch (error) {
+            console.error("Snip Processing Failed:", error);
+        }
+    });
+    ipcMain.on("set-ignore-mouse-events", (event, ignore, options) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+
+        win?.setIgnoreMouseEvents(ignore, options);
+    });
 
     ipcMain.on("start-snip-manual", () => {
         const overlay = getOverlayWindow();
 
         if (overlay) {
             overlay.show();
-            overlay.webContents.send("reset-snip");
             overlay.focus();
+            overlay.webContents.send("reset-snip");
         }
     });
-
-    ipcMain.on(
-        "snip-complete",
-        async (event: IpcMainEvent, coordinates: SnipCoordinates) => {
-            const overlay = getOverlayWindow();
-            const main = getMainWindow();
-
-            if (overlay) overlay.hide();
-            if (main) main.show();
-
-            try {
-                const sources = await desktopCapturer.getSources({
-                    types: ["screen"],
-                    thumbnailSize: { width: 1920, height: 1080 },
-                });
-
-                if (sources.length === 0) {
-                    console.error("No screen sources found");
-
-                    return;
-                }
-
-                const imageBase64 = sources[0].thumbnail.toDataURL();
-
-                if (main) {
-                    const payload: SnipPayload = {
-                        image: imageBase64,
-                        crop: coordinates,
-                    };
-
-                    main.webContents.send("snip-start", payload);
-                }
-
-                const apiResult = await analyzeImageWithBackend(imageBase64);
-
-                if (main) {
-                    main.webContents.send("snip-success", apiResult);
-                }
-            } catch (err) {
-                console.error("Snip failed:", err);
-            }
-        },
-    );
 }
+
+import { BrowserWindow } from "electron";
