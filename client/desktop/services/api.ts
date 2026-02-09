@@ -14,7 +14,7 @@ export async function analyzeImageWithBackend(
         const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
         const response = await fetch(
-            "https://seal-app-d2359.ondigitalocean.app/analyze",
+            "https://plankton-app-p8a82.ondigitalocean.app/analyze",
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
