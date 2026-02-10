@@ -18,3 +18,9 @@ Bird, J.J. and Lotfi, A., 2024. CIFAKE: Image Classification and Explainable Ide
 Real images are from Krizhevsky & Hinton (2009), fake images are from Bird & Lotfi (2024). The Bird & Lotfi study is available here.
 
 Flaw: Images were restricted to 32x32; not suitable for flexible image analysis
+
+switched to principal compoennet analysis (PCA)/eigenfaces
+- mathematical approach that looks for deviations from a standard variance
+- trained on photos taken by the actual camera
+- the eigenvetors that make up the real photo are claculated
+- these eigenveector variance is compared to the reconstruction of the image eigenvecotrs given
