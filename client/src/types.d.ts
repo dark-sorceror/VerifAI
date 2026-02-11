@@ -1,7 +1,8 @@
 export interface AnalysisResult {
-    score: number;
-    reasoning: string;
-    sources: string[];
+    score?: number;
+    label?: string;
+    reasoning_points?: { title: string; bullets?: string[]; detail?: string }[];
+    sources?: string[];
 }
 
 export interface SnipCoordinates {

@@ -2,9 +2,9 @@ import { AnalysisResult } from "../../src/types";
 
 interface BackendResponse {
     score?: number;
-    reasoning?: string;
+    label?: string;
+    reasoning_points?: { title: string; bullets?: string[]; detail?: string }[];
     sources?: string[];
-    error?: string;
 }
 
 export async function analyzeImageWithBackend(
@@ -33,7 +33,8 @@ export async function analyzeImageWithBackend(
 
         return {
             score: data.score ?? 0,
-            reasoning: data.reasoning ?? "No reasoning provided.",
+            label: data.label ?? "Unknown",
+            reasoning_points: data.reasoning_points ?? [],
             sources: data.sources ?? [],
         };
     } catch (error) {
@@ -41,8 +42,13 @@ export async function analyzeImageWithBackend(
 
         return {
             score: 0,
-            reasoning:
-                "Error connecting to server. Please check your internet connection.",
+            label: "Error",
+            reasoning_points: [
+                {
+                    title: "Connection Failed",
+                    detail: "Error connecting to server. Please check your internet connection.",
+                },
+            ],
             sources: [],
         };
     }
