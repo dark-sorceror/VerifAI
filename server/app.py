@@ -7,6 +7,10 @@ from flask_cors import CORS
 from google.genai import types
 from flask import Flask, request, jsonify
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 app = Flask(__name__)
 CORS(app)
 

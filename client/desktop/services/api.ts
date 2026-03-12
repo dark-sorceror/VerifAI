@@ -13,17 +13,14 @@ export async function analyzeImageWithBackend(
     try {
         const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
-        const response = await fetch(
-            "https://plankton-app-p8a82.ondigitalocean.app/analyze",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    file: cleanBase64,
-                    type: "image",
-                }),
-            },
-        );
+        const response = await fetch("http://127.0.0.1:5000/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                file: cleanBase64,
+                type: "image",
+            }),
+        });
 
         if (!response.ok) {
             throw new Error(`Server Error: ${response.status}`);
