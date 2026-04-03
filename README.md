@@ -4,7 +4,7 @@ Submitted to GDG Gemini Hackathon
 
 A multimodal misinformation detection toolkit that analyzes screenshots, images, videos, and text using a multi-stage AI reasoning pipeline.
 
-<img src="./media/verifai_1.png" width="500"/>
+<img src="./media/verifai_1.png" width="700"/>
 
 ## Table of Contents
  
@@ -94,16 +94,16 @@ Pass 3 is what makes confidence scores meaningful: a verdict that collapses unde
 
 ```
 VerifAI/
-├── backend/          # FastAPI — media routing, analysis orchestration
+├── backend/                  # FastAPI — media routing, analysis orchestration
 │   └── app/
 │       ├── main.py           # API entrypoint (/analyze)
 │       ├── core/analyzer.py  # Multi-pass pipeline orchestration
 │       └── analysis/         # ELA, FFT, deepfake, CLIP, factcheck modules
-├── server/           # Flask — Google GenAI (Gemini) wrapper
+├── server/                   # Flask — Google GenAI (Gemini) wrapper
 │   └── app.py
-├── web/              # Vite frontend (TypeScript) (depreciated)
-├── extension/        # Browser extension (TypeScript) (depreciated)
-└── client/           # Electron desktop overlay
+├── web/                      # Vite frontend (TypeScript) (depreciated)
+├── extension/                # Browser extension (TypeScript) (depreciated)
+└── client/                   # Electron desktop overlay
 ```
 
 ## Getting Started
